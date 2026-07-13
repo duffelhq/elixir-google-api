@@ -143,6 +143,24 @@ defmodule Gax.ConnectionTest do
     end)
   end
 
+  # Regression test for tesla >= 1.18.3 compatibility: Tesla.Multipart.add_field/4
+  # now requires binary field names and raises on atoms, so build_body/3 must
+  # stringify the metadata key and every body param name.
+  test "multipart field names are strings, not atoms" do
+    request =
+      Request.new()
+      |> Request.add_param(:body, :metadata, %{foo: "bar"})
+      |> Request.add_param(:body, :data, %{baz: "qux"})
+      |> Connection.build_request()
+
+    body = %Tesla.Multipart{} = Keyword.get(request, :body)
+    names = Enum.map(body.parts, fn part -> Keyword.get(part.dispositions, :name) end)
+
+    assert Enum.all?(names, &is_binary/1)
+    assert "metadata" in names
+    assert "data" in names
+  end
+
   test "creates api client header without library version" do
     request =
       Request.new()
