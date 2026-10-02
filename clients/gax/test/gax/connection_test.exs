@@ -57,6 +57,31 @@ defmodule Gax.ConnectionTest do
     assert 1 == length(body.parts)
   end
 
+  test "builds a file-only request with an atom field name" do
+    request =
+      Request.new()
+      |> Request.add_param(:file, :data, __ENV__.file)
+      |> Connection.build_request()
+
+    assert %Tesla.Multipart{parts: [file]} = Keyword.fetch!(request, :body)
+    assert Keyword.fetch!(file.dispositions, :name) == "data"
+    assert Enum.join(file.body) == File.read!(__ENV__.file)
+  end
+
+  test "builds a metadata and file request with an atom field name" do
+    request =
+      Request.new()
+      |> Request.add_param(:body, :metadata, %{contentType: "image/png"})
+      |> Request.add_param(:file, :data, __ENV__.file)
+      |> Connection.build_request()
+
+    assert %Tesla.Multipart{parts: [metadata, file]} = Keyword.fetch!(request, :body)
+    assert Keyword.fetch!(metadata.dispositions, :name) == "metadata"
+    assert Poison.decode!(metadata.body) == %{"contentType" => "image/png"}
+    assert Keyword.fetch!(file.dispositions, :name) == "data"
+    assert Enum.join(file.body) == File.read!(__ENV__.file)
+  end
+
   test "builds a request with multiple files" do
     request =
       Request.new()
@@ -84,6 +109,7 @@ defmodule Gax.ConnectionTest do
   test "builds a multipart upload request with iodata and content type" do
     metadata = %{contentType: "text/plain"}
     data = ["1", ["2"]]
+
     request =
       Request.new()
       |> Request.add_param(:body, :metadata, metadata)
@@ -101,6 +127,7 @@ defmodule Gax.ConnectionTest do
   test "builds a multipart upload request with iodata but no content type" do
     metadata = %{foo: "bar"}
     data = ["1", ["2"]]
+
     request =
       Request.new()
       |> Request.add_param(:body, :metadata, metadata)
@@ -118,6 +145,7 @@ defmodule Gax.ConnectionTest do
   test "builds a multipart upload request with a JSON decodable struct" do
     metadata = %{foo: "bar"}
     data = %{baz: "qux"}
+
     request =
       Request.new()
       |> Request.add_param(:body, :metadata, metadata)
@@ -135,6 +163,7 @@ defmodule Gax.ConnectionTest do
   test "builds a multipart upload request with a non-JSON struct" do
     metadata = %{foo: "bar"}
     data = %{baz: {}}
+
     assert_raise(Poison.EncodeError, fn ->
       Request.new()
       |> Request.add_param(:body, :metadata, metadata)
